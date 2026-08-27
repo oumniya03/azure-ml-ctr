@@ -110,18 +110,18 @@ def train():
     valid_df = pd.read_parquet(os.path.join(args.data_path, "valid.parquet"))
     item_seq_df = pd.read_parquet(os.path.join(args.data_path, "item_seq.parquet"))
 
-    item_emb_map = {row['item_id']: np.array(row['item_emb_d128'], dtype=np.float32)
-                    for _, row in item_info.iterrows()}
-    item_seq_map = {row['user_id']: row['item_seq']
-                    for _, row in item_seq_df.iterrows()}
+    # Chargement mémoire-efficace des embeddings
+    item_emb_map = dict(zip(item_info['item_id'], item_info['item_emb_d128'].apply(lambda x: np.array(x, dtype=np.float32))))
+    item_seq_map = dict(zip(item_seq_df['user_id'], item_seq_df['item_seq']))
+    del item_info, item_seq_df
 
     num_users = max(train_df['user_id'].max(), valid_df['user_id'].max())
-    num_items = item_info['item_id'].max()
+    num_items = max(item_emb_map.keys())
 
     train_ds = CTRDataset(train_df, item_emb_map, item_seq_map)
     valid_ds = CTRDataset(valid_df, item_emb_map, item_seq_map)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2)
-    valid_loader = DataLoader(valid_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=False)
+    valid_loader = DataLoader(valid_ds, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=False)
 
     model = CTRModel(num_users, num_items, emb_dim=args.emb_dim, dropout=args.dropout).to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

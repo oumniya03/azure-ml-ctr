@@ -28,9 +28,7 @@ ml_client = MLClient(
 )
 print(f"Connecté au workspace: {cfg['workspace_name']}")
 
-compute_name = cfg["compute_cluster"].strip()
-if not compute_name:
-    raise ValueError("compute_cluster est vide dans config.yml / secrets GitHub")
+compute_name = cfg.get("compute_cluster", "").strip() or "gpu-cluster"
 print(f"Compute cluster: {compute_name}")
 
 # ==================== ENVIRONNEMENT ====================

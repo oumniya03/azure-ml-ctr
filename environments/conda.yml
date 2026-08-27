@@ -10,7 +10,7 @@ dependencies:
     - torchvision
     - transformers==4.35.0
     - pandas
-    - numpy
+    - numpy<2
     - scikit-learn
     - tqdm
     - Pillow

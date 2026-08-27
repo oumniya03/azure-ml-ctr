@@ -67,10 +67,12 @@ class CTRDataset(Dataset):
 
 # ==================== MODEL ====================
 class CTRModel(nn.Module):
-    def __init__(self, num_users, num_items, emb_dim=64, item_feat_dim=128,
+    def __init__(self, num_items, emb_dim=64, item_feat_dim=128,
                  hidden_dims=[512, 256, 128], dropout=0.3, attention_dim=256):
         super().__init__()
-        self.user_emb = nn.Embedding(num_users + 1, emb_dim, padding_idx=0)
+        # Hashing trick: 100K buckets au lieu de 1M -> 4x moins de RAM
+        self.user_hash_size = 100_000
+        self.user_emb = nn.Embedding(self.user_hash_size, emb_dim)
         self.item_emb = nn.Embedding(num_items + 1, emb_dim, padding_idx=0)
 
         self.item_proj = nn.Linear(item_feat_dim, emb_dim)
@@ -89,7 +91,7 @@ class CTRModel(nn.Module):
         self.dnn = nn.Sequential(*layers)
 
     def forward(self, user_id, item_id, item_emb, seq_embs, seq_len):
-        u = self.user_emb(user_id)
+        u = self.user_emb(user_id % self.user_hash_size)  # hashing trick
         i_id = self.item_emb(item_id)
         i_feat = self.item_proj(item_emb)
 
@@ -142,7 +144,7 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=False)
     valid_loader = DataLoader(valid_ds, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=False)
 
-    model = CTRModel(num_users, num_items, emb_dim=args.emb_dim, dropout=args.dropout).to(DEVICE)
+    model = CTRModel(num_items=num_items, emb_dim=args.emb_dim, dropout=args.dropout).to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = nn.BCEWithLogitsLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2, factor=0.5)

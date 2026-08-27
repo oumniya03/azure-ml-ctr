@@ -6,10 +6,11 @@ import numpy as np
 
 
 class CTRModel(nn.Module):
-    def __init__(self, num_users, num_items, emb_dim=64, item_feat_dim=128,
+    def __init__(self, num_items, emb_dim=64, item_feat_dim=128,
                  hidden_dims=[512, 256, 128], dropout=0.3):
         super().__init__()
-        self.user_emb = nn.Embedding(num_users + 1, emb_dim, padding_idx=0)
+        self.user_hash_size = 100_000
+        self.user_emb = nn.Embedding(self.user_hash_size, emb_dim)
         self.item_emb = nn.Embedding(num_items + 1, emb_dim, padding_idx=0)
         self.item_proj = nn.Linear(item_feat_dim, emb_dim)
         self.attention = nn.MultiheadAttention(embed_dim=emb_dim, num_heads=4, dropout=dropout, batch_first=True)
@@ -23,7 +24,7 @@ class CTRModel(nn.Module):
         self.dnn = nn.Sequential(*layers)
 
     def forward(self, user_id, item_id, item_emb, seq_embs, seq_len):
-        u = self.user_emb(user_id)
+        u = self.user_emb(user_id % self.user_hash_size)
         i_id = self.item_emb(item_id)
         i_feat = self.item_proj(item_emb)
         seq_proj = self.item_proj(seq_embs)
@@ -43,7 +44,6 @@ def init():
         meta = json.load(f)
 
     model = CTRModel(
-        num_users=meta["num_users"],
         num_items=meta["num_items"],
         emb_dim=meta["emb_dim"],
         dropout=meta["dropout"]

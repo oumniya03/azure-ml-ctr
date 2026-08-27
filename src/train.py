@@ -46,9 +46,10 @@ class CTRDataset(Dataset):
         label = float(row['label'])
 
         item_emb = self.item_emb_map.get(item_id, np.zeros(128, dtype=np.float32))
+        item_emb = item_emb.astype(np.float32)
 
         seq = self.item_seq_map.get(user_id, [])
-        seq_embs = [self.item_emb_map.get(i, np.zeros(128, dtype=np.float32)) for i in seq[-self.max_seq_len:]]
+        seq_embs = [self.item_emb_map.get(i, np.zeros(128, dtype=np.float32)).astype(np.float32) for i in seq[-self.max_seq_len:]]
         seq_len = len(seq_embs)
 
         # Padding
@@ -110,16 +111,24 @@ def train():
     valid_df = pd.read_parquet(os.path.join(args.data_path, "valid.parquet"))
     item_seq_df = pd.read_parquet(os.path.join(args.data_path, "item_seq.parquet"))
 
-    # Chargement mémoire-efficace des embeddings
-    item_emb_map = dict(zip(item_info['item_id'], item_info['item_emb_d128'].apply(lambda x: np.array(x, dtype=np.float32))))
+    # Chargement mémoire-efficace
+    item_emb_map = dict(zip(
+        item_info['item_id'],
+        item_info['item_emb_d128'].apply(lambda x: np.array(x, dtype=np.float16))  # float16 = moitié RAM
+    ))
     item_seq_map = dict(zip(item_seq_df['user_id'], item_seq_df['item_seq']))
     del item_info, item_seq_df
+    import gc; gc.collect()
+    print(f"Embeddings chargés. Users: {len(item_seq_map)}, Items: {len(item_emb_map)}")
 
     num_users = max(train_df['user_id'].max(), valid_df['user_id'].max())
     num_items = max(item_emb_map.keys())
 
     train_ds = CTRDataset(train_df, item_emb_map, item_seq_map)
     valid_ds = CTRDataset(valid_df, item_emb_map, item_seq_map)
+    del train_df, valid_df
+    gc.collect()
+
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=False)
     valid_loader = DataLoader(valid_ds, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=False)
 

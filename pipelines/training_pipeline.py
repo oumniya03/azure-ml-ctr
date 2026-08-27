@@ -55,7 +55,7 @@ job = command(
         "data_path": Input(type=AssetTypes.URI_FOLDER, path=cfg["data_asset"]),
         "epochs": 15,
         "lr": 0.002,
-        "batch_size": 1024,
+        "batch_size": 512,
         "dropout": 0.3,
         "emb_dim": 64,
     },

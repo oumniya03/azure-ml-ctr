@@ -34,8 +34,24 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
                   [monitor.py]
                   PSI + KS drift detection
 ```
-
 ---
+
+## 📁 Structure des fichiers MLOps
+
+```
+.github/workflows/deploy.yml   # CI/CD : retrain ou deploy-only
+src/train.py                   # Entraînement + MLflow tracking
+src/score.py                   # Scoring online (init + run)
+src/batch_score.py             # Scoring batch (init + run(mini_batch))
+pipelines/training_pipeline.py # Soumission job + enregistrement modèle
+pipelines/deploy_batch.py      # Création batch endpoint + deployment
+generate_batch_sample.py       # Génère data/batch_test_sample.parquet
+test_batch_endpoint.py         # Soumet un job batch et affiche les résultats
+monitor.py                     # Détection de dérive PSI + KS
+environments/conda.yml         # Environnement conda reproductible
+```
+---
+
 
 ## 📦 Composants déployés
 
@@ -92,21 +108,6 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
 ### CI/CD GitHub Actions
 ![GitHub Actions](screens/github.png)
 
----
-
-## 📦 Composants déployés
-
-| Composant | Statut | Détail |
-|---|---|---|
-| Workspace Azure ML | ✅ | `ctr-workspace`, `rg-ctr-project`, `francecentral` |
-| Compute cluster | ✅ | `gpu-cluster`, Standard_DS3_v2, min 0 / max 1 |
-| Données | ✅ | `microlens-data`, 4 fichiers parquet |
-| Entraînement + MLflow | ✅ | `src/train.py`, early stopping, tracking complet |
-| Registre modèle | ✅ | `ctr-multimodal v1`, CUSTOM_MODEL |
-| CI/CD GitHub Actions | ✅ | `.github/workflows/deploy.yml`, mode `deploy-only` / `retrain` |
-| Batch Endpoint | ✅ déployé | `ctr-batch-endpoint`, modèle charge correctement |
-| Online Endpoint | ❌ abandonné | Voir ci-dessous |
-| Monitoring | 🔧 code prêt | `monitor.py`, PSI + KS, non testé en prod |
 
 ---
 
@@ -127,23 +128,6 @@ python test_batch_endpoint.py
 
 # Monitoring de dérive
 python monitor.py --new-data ./data/batch_test_sample.parquet
-```
-
----
-
-## 📁 Structure des fichiers MLOps
-
-```
-.github/workflows/deploy.yml   # CI/CD : retrain ou deploy-only
-src/train.py                   # Entraînement + MLflow tracking
-src/score.py                   # Scoring online (init + run)
-src/batch_score.py             # Scoring batch (init + run(mini_batch))
-pipelines/training_pipeline.py # Soumission job + enregistrement modèle
-pipelines/deploy_batch.py      # Création batch endpoint + deployment
-generate_batch_sample.py       # Génère data/batch_test_sample.parquet
-test_batch_endpoint.py         # Soumet un job batch et affiche les résultats
-monitor.py                     # Détection de dérive PSI + KS
-environments/conda.yml         # Environnement conda reproductible
 ```
 
 ---

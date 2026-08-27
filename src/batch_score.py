@@ -3,6 +3,7 @@ import json
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
 
 
 class CTRModel(nn.Module):
@@ -40,9 +41,8 @@ def init():
 
     model_dir = os.getenv("AZUREML_MODEL_DIR", ".")
 
-    # Chercher model_metadata.json dans model_dir et sous-dossiers
     meta_path = None
-    for root, dirs, files in os.walk(model_dir):
+    for root, _, files in os.walk(model_dir):
         if "model_metadata.json" in files:
             meta_path = os.path.join(root, "model_metadata.json")
             break
@@ -52,9 +52,8 @@ def init():
     with open(meta_path) as f:
         meta = json.load(f)
 
-    # Chercher best_model.pt
     pt_path = None
-    for root, dirs, files in os.walk(model_dir):
+    for root, _, files in os.walk(model_dir):
         if "best_model.pt" in files:
             pt_path = os.path.join(root, "best_model.pt")
             break
@@ -62,6 +61,7 @@ def init():
         raise FileNotFoundError(f"best_model.pt introuvable dans {model_dir}")
 
     state_dict = torch.load(pt_path, map_location=device)
+    # Déduire num_items depuis le checkpoint pour éviter mismatch
     num_items = state_dict["item_emb.weight"].shape[0] - 1
     model = CTRModel(num_items=num_items, emb_dim=meta["emb_dim"], dropout=meta["dropout"])
     model.load_state_dict(state_dict)
@@ -70,27 +70,34 @@ def init():
     print("Modèle CTR chargé.")
 
 
-def run(raw_data):
+def run(mini_batch):
     """
-    Entrée attendue (JSON):
-    {
-        "user_id": [1, 2],
-        "item_id": [10, 20],
-        "item_emb": [[...128 floats...], [...]],
-        "seq_embs": [[[...128 floats...] x 50], [...]],
-        "seq_len": [5, 12]
-    }
+    mini_batch: liste de chemins vers des fichiers parquet
+    Chaque fichier doit contenir les colonnes:
+        user_id, item_id, item_emb (list[128]), seq_embs (list[50x128]), seq_len
+    Retourne un DataFrame avec colonnes [user_id, item_id, prediction]
     """
-    data = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+    results = []
 
-    user_id = torch.tensor(data["user_id"], dtype=torch.long).to(device)
-    item_id = torch.tensor(data["item_id"], dtype=torch.long).to(device)
-    item_emb = torch.tensor(data["item_emb"], dtype=torch.float32).to(device)
-    seq_embs = torch.tensor(data["seq_embs"], dtype=torch.float32).to(device)
-    seq_len = torch.tensor(data["seq_len"], dtype=torch.long).to(device)
+    for file_path in mini_batch:
+        df = pd.read_parquet(file_path)
 
-    with torch.no_grad():
-        logits = model(user_id, item_id, item_emb, seq_embs, seq_len)
-        probs = torch.sigmoid(logits).cpu().numpy().tolist()
+        user_id = torch.tensor(df["user_id"].values, dtype=torch.long).to(device)
+        item_id = torch.tensor(df["item_id"].values, dtype=torch.long).to(device)
+        item_emb = torch.tensor(np.array(df["item_emb"].tolist(), dtype=np.float32)).to(device)
+        seq_embs_list = [np.array(s, dtype=np.float32).reshape(50, 128) for s in df["seq_embs"]]
+        seq_embs = torch.tensor(np.stack(seq_embs_list)).to(device)
+        seq_len = torch.tensor(df["seq_len"].values, dtype=torch.long).to(device)
 
-    return {"predictions": probs}
+        with torch.no_grad():
+            logits = model(user_id, item_id, item_emb, seq_embs, seq_len)
+            probs = torch.sigmoid(logits).cpu().numpy()
+
+        batch_result = pd.DataFrame({
+            "user_id": df["user_id"].values,
+            "item_id": df["item_id"].values,
+            "prediction": probs,
+        })
+        results.append(batch_result)
+
+    return pd.concat(results, ignore_index=True)

@@ -5,7 +5,7 @@ Usage: python pipelines/training_pipeline.py [--deploy]
 import argparse
 from azure.ai.ml import MLClient, command, Input
 from azure.ai.ml.entities import (
-    Environment, ManagedOnlineEndpoint, ManagedOnlineDeployment, Model
+    Environment, ManagedOnlineEndpoint, ManagedOnlineDeployment, Model, CodeConfiguration
 )
 from azure.ai.ml.constants import AssetTypes
 from azure.identity import DefaultAzureCredential
@@ -17,6 +17,7 @@ parser.add_argument("--experiment", type=str, default="ctr-multimodal")
 parser.add_argument("--register-only", type=str, default="", help="Job name existant pour enregistrer sans réentraîner")
 parser.add_argument("--deploy-only", action="store_true", help="Déployer uniquement (modèle déjà enregistré)")
 parser.add_argument("--model-version", type=str, default="1", help="Version du modèle à déployer")
+parser.add_argument("--skip-endpoint-creation", action="store_true", help="Skip création endpoint (déjà existant)")
 args = parser.parse_args()
 
 # ==================== CONNEXION WORKSPACE ====================
@@ -109,20 +110,24 @@ else:
 if args.deploy:
     endpoint_name = "ctr-endpoint"
 
-    endpoint = ManagedOnlineEndpoint(
-        name=endpoint_name,
-        description="Endpoint CTR multimodal MicroLens",
-        auth_mode="key",
-    )
-    ml_client.online_endpoints.begin_create_or_update(endpoint).result()
-    print(f"Endpoint créé: {endpoint_name}")
+    if not args.skip_endpoint_creation:
+        endpoint = ManagedOnlineEndpoint(
+            name=endpoint_name,
+            description="Endpoint CTR multimodal MicroLens",
+            auth_mode="key",
+        )
+        ml_client.online_endpoints.begin_create_or_update(endpoint).result()
+        print(f"Endpoint créé: {endpoint_name}")
+    else:
+        endpoint = ml_client.online_endpoints.get(endpoint_name)
+        print(f"Endpoint existant récupéré: {endpoint_name}")
 
     deployment = ManagedOnlineDeployment(
         name="blue",
         endpoint_name=endpoint_name,
         model=model.id,
         environment=env,
-        code_configuration={"code": "./src", "scoring_script": "score.py"},
+        code_configuration=CodeConfiguration(code="./src", scoring_script="score.py"),
         instance_type="Standard_DS3_v2",
         instance_count=1,
     )

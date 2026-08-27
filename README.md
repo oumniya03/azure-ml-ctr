@@ -64,8 +64,14 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
 ### Données uploadées
 ![Data assets microlens-data](screens/data.png)
 
-### Jobs d'entraînement
+### Jobs 
 ![Jobs](screens/jobs.png)
+
+### Préparation de l'image Docker (environnement conda)
+![Image Docker](screens/image.png)
+
+### Jobs d'entraînement
+![Jobs](screens/jobs_entrainement.png)
 > Les runs échoués correspondent aux phases de débogage (crashes mémoire OOM, bug item_seq). Ces problèmes ont été identifiés et corrigés progressivement — voir section [Résultats](#-résultats) pour l'explication complète.
 
 ### Entraînement — run final
@@ -74,8 +80,7 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
 ### Métriques MLflow (val_auc / train_loss)
 ![Métriques](screens/metriques.png)
 
-### Préparation de l'image Docker (environnement conda)
-![Image Docker](screens/image.png)
+
 
 ### Registre modèle — ctr-multimodal v1
 ![Modèle enregistré](screens/ctr_multimodal.png)
@@ -86,33 +91,6 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
 
 ### CI/CD GitHub Actions
 ![GitHub Actions](screens/github.png)
-
----
-
-```
-[Données Parquet]          [GitHub Push]
-       │                        │
-       ▼                        ▼
-[Azure Blob Storage]    [GitHub Actions CI/CD]
-       │                        │
-       └──────────┬─────────────┘
-                  ▼
-         [Azure ML Workspace]
-                  │
-         ┌────────┴────────┐
-         ▼                 ▼
-   [Training Job]    [Model Registry]
-   src/train.py      ctr-multimodal v1
-   MLflow tracking         │
-                           ▼
-                  [Batch Endpoint]
-                  ctr-batch-endpoint
-                  batch_score.py
-                           │
-                           ▼
-                  [monitor.py]
-                  PSI + KS drift detection
-```
 
 ---
 

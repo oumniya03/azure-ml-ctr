@@ -125,15 +125,19 @@ def train():
     import gc; gc.collect()
     print(f"item_emb_map: {len(item_emb_map)} items")
 
-    print("Chargement item_seq...")
-    item_seq_df = pd.read_parquet(os.path.join(args.data_path, "item_seq.parquet"),
-                                  columns=['user_id', 'item_seq'])
-    item_seq_map = dict(zip(item_seq_df['user_id'], item_seq_df['item_seq']))
-    del item_seq_df
-    gc.collect()
+    # item_seq = 6M lignes (plusieurs par user) -> charger par batch, garder derniere seq par user
+    print("Chargement item_seq par batches...")
+    import gc, pyarrow.parquet as pq
+    item_seq_map = {}
+    pf = pq.ParquetFile(os.path.join(args.data_path, "item_seq.parquet"))
+    for batch in pf.iter_batches(batch_size=500_000, columns=['user_id', 'item_seq']):
+        batch_df = batch.to_pandas()
+        for uid, seq in zip(batch_df['user_id'], batch_df['item_seq']):
+            item_seq_map[int(uid)] = [int(x) for x in seq if x != 0]
+        del batch_df
+        gc.collect()
     print(f"item_seq_map: {len(item_seq_map)} users")
 
-    num_users = max(train_df['user_id'].max(), valid_df['user_id'].max())
     num_items = max(item_emb_map.keys())
 
     train_ds = CTRDataset(train_df, item_emb_map, item_seq_map)
@@ -207,8 +211,7 @@ def train():
     mlflow.pytorch.log_model(model, "ctr_model")
 
     # Sauvegarde des métadonnées pour le score.py
-    metadata = {"num_users": int(num_users), "num_items": int(num_items),
-                 "emb_dim": args.emb_dim, "dropout": args.dropout}
+    metadata = {"num_items": int(num_items), "emb_dim": args.emb_dim, "dropout": args.dropout}
     import json
     with open(os.path.join(args.output_dir, "model_metadata.json"), "w") as f:
         json.dump(metadata, f)

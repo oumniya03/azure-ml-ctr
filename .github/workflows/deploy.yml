@@ -1,0 +1,52 @@
+name: Azure ML CTR Training
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "environments/**"
+      - "pipelines/**"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Déployer l'endpoint après entraînement"
+        type: boolean
+        default: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Azure ML SDK
+        run: pip install azure-ai-ml azure-identity pyyaml
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Remplacer config.yml avec les secrets
+        run: |
+          cat > config.yml << EOF
+          subscription_id: "${{ secrets.AML_SUBSCRIPTION_ID }}"
+          resource_group: "${{ secrets.AML_RESOURCE_GROUP }}"
+          workspace_name: "${{ secrets.AML_WORKSPACE_NAME }}"
+          compute_cluster: "${{ secrets.AML_COMPUTE_CLUSTER }}"
+          data_asset: "${{ secrets.AML_DATA_ASSET }}"
+          EOF
+
+      - name: Soumettre le job d'entraînement Azure ML
+        run: |
+          DEPLOY_FLAG=""
+          if [ "${{ github.event.inputs.deploy }}" == "true" ]; then
+            DEPLOY_FLAG="--deploy"
+          fi
+          python pipelines/training_pipeline.py $DEPLOY_FLAG --experiment "ctr-multimodal-ci"

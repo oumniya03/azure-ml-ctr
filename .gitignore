@@ -1,0 +1,11 @@
+config.yml
+config.json
+déploiement.json
+deployment_operations.json
+*.pt
+*.parquet
+outputs/
+__pycache__/
+.env
+*.pyc
+prediction.csv

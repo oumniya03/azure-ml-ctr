@@ -206,9 +206,9 @@ def train():
                 print(f"Early stopping at epoch {epoch}")
                 break
 
-    # Sauvegarde finale + enregistrement MLflow
+    # Sauvegarde finale + enregistrement MLflow compatible Azure ML
     model.load_state_dict(torch.load(os.path.join(args.output_dir, "best_model.pt")))
-    mlflow.pytorch.log_model(model, "ctr_model")
+    mlflow.log_artifact(os.path.join(args.output_dir, "best_model.pt"))
 
     # Sauvegarde des métadonnées pour le score.py
     metadata = {"num_items": int(num_items), "emb_dim": args.emb_dim, "dropout": args.dropout}

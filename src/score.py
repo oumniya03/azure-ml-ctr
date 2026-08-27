@@ -40,15 +40,33 @@ def init():
 
     model_dir = os.getenv("AZUREML_MODEL_DIR", ".")
 
-    with open(os.path.join(model_dir, "model_metadata.json")) as f:
+    # Chercher model_metadata.json dans model_dir et sous-dossiers
+    meta_path = None
+    for root, dirs, files in os.walk(model_dir):
+        if "model_metadata.json" in files:
+            meta_path = os.path.join(root, "model_metadata.json")
+            break
+    if meta_path is None:
+        raise FileNotFoundError(f"model_metadata.json introuvable dans {model_dir}")
+
+    with open(meta_path) as f:
         meta = json.load(f)
+
+    # Chercher best_model.pt
+    pt_path = None
+    for root, dirs, files in os.walk(model_dir):
+        if "best_model.pt" in files:
+            pt_path = os.path.join(root, "best_model.pt")
+            break
+    if pt_path is None:
+        raise FileNotFoundError(f"best_model.pt introuvable dans {model_dir}")
 
     model = CTRModel(
         num_items=meta["num_items"],
         emb_dim=meta["emb_dim"],
         dropout=meta["dropout"]
     )
-    model.load_state_dict(torch.load(os.path.join(model_dir, "best_model.pt"), map_location=device))
+    model.load_state_dict(torch.load(pt_path, map_location=device))
     model.to(device)
     model.eval()
     print("Modèle CTR chargé.")

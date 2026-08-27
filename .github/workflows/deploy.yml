@@ -9,10 +9,17 @@ on:
       - "pipelines/**"
   workflow_dispatch:
     inputs:
-      deploy:
-        description: "Déployer l'endpoint après entraînement"
-        type: boolean
-        default: false
+      mode:
+        description: "Mode: deploy-only (défaut) | retrain (réentraîner)"
+        type: choice
+        options:
+          - deploy-only
+          - retrain
+        default: deploy-only
+      model_version:
+        description: "Version du modèle à déployer (deploy-only uniquement)"
+        type: string
+        default: "1"
 
 jobs:
   train:
@@ -56,10 +63,14 @@ jobs:
           AML_COMPUTE_CLUSTER: ${{ secrets.AML_COMPUTE_CLUSTER }}
           AML_DATA_ASSET: ${{ secrets.AML_DATA_ASSET }}
 
-      - name: Soumettre le job d'entraînement Azure ML
+      - name: Soumettre le job Azure ML
         run: |
-          DEPLOY_FLAG=""
-          if [ "${{ github.event.inputs.deploy }}" == "true" ]; then
-            DEPLOY_FLAG="--deploy"
+          MODE="${{ github.event.inputs.mode }}"
+          MODEL_VERSION="${{ github.event.inputs.model_version }}"
+          # Par défaut (push) ou mode deploy-only: déployer sans réentraîner
+          if [ "$MODE" == "retrain" ]; then
+            python pipelines/training_pipeline.py --deploy --experiment "ctr-multimodal-ci"
+          else
+            VERSION=${MODEL_VERSION:-1}
+            python pipelines/training_pipeline.py --deploy-only --model-version "$VERSION" --experiment "ctr-multimodal-ci"
           fi
-          python pipelines/training_pipeline.py $DEPLOY_FLAG --experiment "ctr-multimodal-ci"

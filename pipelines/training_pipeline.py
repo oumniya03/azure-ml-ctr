@@ -14,6 +14,9 @@ import yaml, os
 parser = argparse.ArgumentParser()
 parser.add_argument("--deploy", action="store_true", help="Déployer l'endpoint après entraînement")
 parser.add_argument("--experiment", type=str, default="ctr-multimodal")
+parser.add_argument("--register-only", type=str, default="", help="Job name existant pour enregistrer sans réentraîner")
+parser.add_argument("--deploy-only", action="store_true", help="Déployer uniquement (modèle déjà enregistré)")
+parser.add_argument("--model-version", type=str, default="1", help="Version du modèle à déployer")
 args = parser.parse_args()
 
 # ==================== CONNEXION WORKSPACE ====================
@@ -65,26 +68,42 @@ job = command(
     display_name="ctr-training-run",
 )
 
-print("Soumission du job d'entraînement...")
-returned_job = ml_client.jobs.create_or_update(job)
-print(f"Job soumis: {returned_job.name}")
-print(f"Suivi: {returned_job.studio_url}")
-
-# Attendre la fin du job
-ml_client.jobs.stream(returned_job.name)
-
 # ==================== ENREGISTREMENT DU MODÈLE ====================
-print("Enregistrement du modèle dans le registre Azure ML...")
-model = ml_client.models.create_or_update(
-    Model(
-        name="ctr-multimodal",
-        path=f"azureml://jobs/{returned_job.name}/outputs/artifacts/outputs",
-        type=AssetTypes.CUSTOM_MODEL,
-        description="CTR model CLIP+Attention+DNN — MicroLens-1M",
-        tags={"auc": "0.7752", "framework": "pytorch", "dataset": "MicroLens-1M"},
+if args.deploy_only:
+    # Modèle déjà enregistré, récupérer directement
+    model = ml_client.models.get("ctr-multimodal", version=args.model_version)
+    print(f"Modèle récupéré: {model.name} v{model.version}")
+elif args.register_only:
+    job_name = args.register_only
+    print(f"Enregistrement depuis job existant: {job_name}")
+    model = ml_client.models.create_or_update(
+        Model(
+            name="ctr-multimodal",
+            path=f"azureml://jobs/{job_name}/outputs/artifacts/outputs",
+            type=AssetTypes.CUSTOM_MODEL,
+            description="CTR model CLIP+Attention+DNN — MicroLens-1M",
+            tags={"auc": "0.5099", "framework": "pytorch", "dataset": "MicroLens-1M"},
+        )
     )
-)
-print(f"Modèle enregistré: {model.name} v{model.version}")
+    print(f"Modèle enregistré: {model.name} v{model.version}")
+else:
+    print("Soumission du job d'entraînement...")
+    returned_job = ml_client.jobs.create_or_update(job)
+    print(f"Job soumis: {returned_job.name}")
+    print(f"Suivi: {returned_job.studio_url}")
+    ml_client.jobs.stream(returned_job.name)
+    job_name = returned_job.name
+    print("Enregistrement du modèle dans le registre Azure ML...")
+    model = ml_client.models.create_or_update(
+        Model(
+            name="ctr-multimodal",
+            path=f"azureml://jobs/{job_name}/outputs/artifacts/outputs",
+            type=AssetTypes.CUSTOM_MODEL,
+            description="CTR model CLIP+Attention+DNN — MicroLens-1M",
+            tags={"auc": "0.5099", "framework": "pytorch", "dataset": "MicroLens-1M"},
+        )
+    )
+    print(f"Modèle enregistré: {model.name} v{model.version}")
 
 # ==================== DÉPLOIEMENT ENDPOINT (optionnel) ====================
 if args.deploy:

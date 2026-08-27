@@ -53,6 +53,85 @@ Ce dépôt contient le **pipeline MLOps complet** pour le déploiement sur Azure
 
 ---
 
+## 🖼️ Preuves de déploiement
+
+### Workspace Azure ML
+![Workspace](screens/ctr_workspace.png)
+
+### Compute Cluster
+![Compute cluster gpu-cluster](screens/gpu_cluster.png)
+
+### Données uploadées
+![Data assets microlens-data](screens/data.png)
+
+### Jobs d'entraînement
+![Jobs](screens/jobs.png)
+> Les runs échoués correspondent aux phases de débogage (crashes mémoire OOM, bug item_seq). Ces problèmes ont été identifiés et corrigés progressivement — voir section [Résultats](#-résultats) pour l'explication complète.
+
+### Entraînement — run final
+![Entraînement](screens/entrainnment.png)
+
+### Métriques MLflow (val_auc / train_loss)
+![Métriques](screens/metriques.png)
+
+### Préparation de l'image Docker (environnement conda)
+![Image Docker](screens/image.png)
+
+### Registre modèle — ctr-multimodal v1
+![Modèle enregistré](screens/ctr_multimodal.png)
+
+### Batch Endpoint
+![Batch endpoint](screens/ctr-endpoint.png)
+> L'endpoint `ctr-batch-endpoint` est déployé et le modèle charge correctement (log confirmé : *"Modèle CTR chargé."*). Les tentatives d'online endpoint échouées sont dues à une limitation de souscription documentée ci-dessous.
+
+### CI/CD GitHub Actions
+![GitHub Actions](screens/github.png)
+
+---
+
+```
+[Données Parquet]          [GitHub Push]
+       │                        │
+       ▼                        ▼
+[Azure Blob Storage]    [GitHub Actions CI/CD]
+       │                        │
+       └──────────┬─────────────┘
+                  ▼
+         [Azure ML Workspace]
+                  │
+         ┌────────┴────────┐
+         ▼                 ▼
+   [Training Job]    [Model Registry]
+   src/train.py      ctr-multimodal v1
+   MLflow tracking         │
+                           ▼
+                  [Batch Endpoint]
+                  ctr-batch-endpoint
+                  batch_score.py
+                           │
+                           ▼
+                  [monitor.py]
+                  PSI + KS drift detection
+```
+
+---
+
+## 📦 Composants déployés
+
+| Composant | Statut | Détail |
+|---|---|---|
+| Workspace Azure ML | ✅ | `ctr-workspace`, `rg-ctr-project`, `francecentral` |
+| Compute cluster | ✅ | `gpu-cluster`, Standard_DS3_v2, min 0 / max 1 |
+| Données | ✅ | `microlens-data`, 4 fichiers parquet |
+| Entraînement + MLflow | ✅ | `src/train.py`, early stopping, tracking complet |
+| Registre modèle | ✅ | `ctr-multimodal v1`, CUSTOM_MODEL |
+| CI/CD GitHub Actions | ✅ | `.github/workflows/deploy.yml`, mode `deploy-only` / `retrain` |
+| Batch Endpoint | ✅ déployé | `ctr-batch-endpoint`, modèle charge correctement |
+| Online Endpoint | ❌ abandonné | Voir ci-dessous |
+| Monitoring | 🔧 code prêt | `monitor.py`, PSI + KS, non testé en prod |
+
+---
+
 ## 🚀 Utilisation
 
 ```bash

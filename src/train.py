@@ -105,21 +105,31 @@ class CTRModel(nn.Module):
 def train():
     print(f"Device: {DEVICE}")
 
-    # Chargement données
-    item_info = pd.read_parquet(os.path.join(args.data_path, "item_info_new_fusion.parquet"))
-    train_df = pd.read_parquet(os.path.join(args.data_path, "train.parquet"))
-    valid_df = pd.read_parquet(os.path.join(args.data_path, "valid.parquet"))
-    item_seq_df = pd.read_parquet(os.path.join(args.data_path, "item_seq.parquet"))
+    print("Chargement train/valid...")
+    train_df = pd.read_parquet(os.path.join(args.data_path, "train.parquet"),
+                               columns=['user_id', 'item_id', 'label'])
+    valid_df = pd.read_parquet(os.path.join(args.data_path, "valid.parquet"),
+                               columns=['user_id', 'item_id', 'label'])
 
-    # Chargement mémoire-efficace
+    # Chargement séquentiel pour éviter les pics mémoire
+    print("Chargement item_info...")
+    item_info = pd.read_parquet(os.path.join(args.data_path, "item_info_new_fusion.parquet"),
+                                columns=['item_id', 'item_emb_d128'])
     item_emb_map = dict(zip(
         item_info['item_id'],
-        item_info['item_emb_d128'].apply(lambda x: np.array(x, dtype=np.float16))  # float16 = moitié RAM
+        item_info['item_emb_d128'].apply(lambda x: np.array(x, dtype=np.float16))
     ))
-    item_seq_map = dict(zip(item_seq_df['user_id'], item_seq_df['item_seq']))
-    del item_info, item_seq_df
+    del item_info
     import gc; gc.collect()
-    print(f"Embeddings chargés. Users: {len(item_seq_map)}, Items: {len(item_emb_map)}")
+    print(f"item_emb_map: {len(item_emb_map)} items")
+
+    print("Chargement item_seq...")
+    item_seq_df = pd.read_parquet(os.path.join(args.data_path, "item_seq.parquet"),
+                                  columns=['user_id', 'item_seq'])
+    item_seq_map = dict(zip(item_seq_df['user_id'], item_seq_df['item_seq']))
+    del item_seq_df
+    gc.collect()
+    print(f"item_seq_map: {len(item_seq_map)} users")
 
     num_users = max(train_df['user_id'].max(), valid_df['user_id'].max())
     num_items = max(item_emb_map.keys())

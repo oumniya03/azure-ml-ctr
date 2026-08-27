@@ -35,13 +35,26 @@ jobs:
 
       - name: Remplacer config.yml avec les secrets
         run: |
-          cat > config.yml << EOF
-          subscription_id: "${{ secrets.AML_SUBSCRIPTION_ID }}"
-          resource_group: "${{ secrets.AML_RESOURCE_GROUP }}"
-          workspace_name: "${{ secrets.AML_WORKSPACE_NAME }}"
-          compute_cluster: "${{ secrets.AML_COMPUTE_CLUSTER }}"
-          data_asset: "${{ secrets.AML_DATA_ASSET }}"
-          EOF
+          python - <<'PYEOF'
+          import yaml
+          import os
+          cfg = {
+              "subscription_id": os.environ["AML_SUBSCRIPTION_ID"],
+              "resource_group": os.environ["AML_RESOURCE_GROUP"],
+              "workspace_name": os.environ["AML_WORKSPACE_NAME"],
+              "compute_cluster": os.environ["AML_COMPUTE_CLUSTER"],
+              "data_asset": os.environ["AML_DATA_ASSET"],
+          }
+          with open("config.yml", "w") as f:
+              yaml.dump(cfg, f)
+          print("config.yml written:", cfg)
+          PYEOF
+        env:
+          AML_SUBSCRIPTION_ID: ${{ secrets.AML_SUBSCRIPTION_ID }}
+          AML_RESOURCE_GROUP: ${{ secrets.AML_RESOURCE_GROUP }}
+          AML_WORKSPACE_NAME: ${{ secrets.AML_WORKSPACE_NAME }}
+          AML_COMPUTE_CLUSTER: ${{ secrets.AML_COMPUTE_CLUSTER }}
+          AML_DATA_ASSET: ${{ secrets.AML_DATA_ASSET }}
 
       - name: Soumettre le job d'entraînement Azure ML
         run: |

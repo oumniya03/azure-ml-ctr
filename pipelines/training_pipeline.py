@@ -28,6 +28,11 @@ ml_client = MLClient(
 )
 print(f"Connecté au workspace: {cfg['workspace_name']}")
 
+compute_name = cfg["compute_cluster"].strip()
+if not compute_name:
+    raise ValueError("compute_cluster est vide dans config.yml / secrets GitHub")
+print(f"Compute cluster: {compute_name}")
+
 # ==================== ENVIRONNEMENT ====================
 env = Environment(
     name="ctr-env",
@@ -57,7 +62,7 @@ job = command(
         "emb_dim": 64,
     },
     environment=env,
-    compute=cfg["compute_cluster"],
+    compute=compute_name,
     experiment_name=args.experiment,
     display_name="ctr-training-run",
 )
